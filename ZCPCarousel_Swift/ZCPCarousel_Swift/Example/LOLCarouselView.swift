@@ -29,6 +29,7 @@ class LOLCarouselView: UIView {
         super.init(frame: frame)
         addSubview(carouselView)
         carouselView.pageControl = LOLPageControl()
+        carouselView.pageControlChangeMode = .half
     }
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -36,14 +37,14 @@ class LOLCarouselView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         carouselView.frame = bounds
-        carouselView.pageControl?.frame = CGRect(x: 0, y: carouselView.frame.height - 10, width: frame.width, height: 10)
+        carouselView.pageControl?.frame = CGRect(x: 0, y: carouselView.frame.height - 15, width: frame.width, height: 10)
     }
 }
 
 // MARK: - 掌盟pageControl
 
-internal let ITEM_SIDE: Double = 10
-internal let ITEM_GAP: Double = 10
+fileprivate let ITEM_SIDE: Double = 10
+fileprivate let ITEM_GAP: Double = 10
 
 class LOLPageControl: UIView, ZCPCarouselPageControlProtocol {
     // MARK: - property
@@ -84,7 +85,7 @@ class LOLPageControl: UIView, ZCPCarouselPageControlProtocol {
         
         // 添加layer
         for index in 0..<numberOfPages {
-            let itemLayer = generatePageItemLayer(false)
+            let itemLayer = LOLPageItemLayer()
             itemLayerArr.append(itemLayer)
             itemContainerLayer.addSublayer(itemLayer)
             
@@ -97,17 +98,11 @@ class LOLPageControl: UIView, ZCPCarouselPageControlProtocol {
     
     private func setCurrentPage(_ newPage: Int) {
         if itemLayerArr.count <= newPage { return }
-        var itemLayer = itemLayerArr[newPage]
-        let layerFrame = itemLayer.frame
         
-        itemLayer.removeFromSuperlayer()
-        itemLayer = generatePageItemLayer(true)
-        itemLayer.frame = layerFrame
-        itemContainerLayer.addSublayer(itemLayer)
-    }
-    
-    func generatePageItemLayer(_ isSelected: Bool) -> LOLPageItemLayer {
-        return LOLPageItemLayer(CGSize(width: ITEM_SIDE, height: ITEM_SIDE), isSelected)
+        let oldItemLayer = itemLayerArr[currentPage]
+        let newItemLayer = itemLayerArr[newPage]
+        oldItemLayer.isSelected = false
+        newItemLayer.isSelected = true
     }
 }
 
@@ -115,69 +110,81 @@ class LOLPageItemLayer: CALayer {
     
     // MARK: - property
     lazy var outLayer: CAShapeLayer = {
-        return CAShapeLayer()
+        let l = CAShapeLayer()
+        l.backgroundColor = UIColor.clear.cgColor
+        l.strokeColor = UIColor(red: CGFloat(183.0/255.0), green: CGFloat(174.0/255.0), blue: CGFloat(47.0/255.0), alpha: CGFloat(1)).cgColor
+        l.lineWidth = 1
+        return l
     }()
     lazy var inLayer: CAShapeLayer = {
-        return CAShapeLayer()
+        let l = CAShapeLayer()
+        l.backgroundColor = UIColor.clear.cgColor
+        l.strokeColor = UIColor(red: CGFloat(183.0/255.0), green: CGFloat(174.0/255.0), blue: CGFloat(47.0/255.0), alpha: CGFloat(1)).cgColor
+        l.fillColor = UIColor(red: CGFloat(183.0/255.0), green: CGFloat(174.0/255.0), blue: CGFloat(47.0/255.0), alpha: CGFloat(1)).cgColor
+        l.lineWidth = 1
+        return l
     }()
     
     var isSelected: Bool = false {
         didSet {
-            updateState()
+            setNeedsLayout()
         }
     }
     
     // MARK: - life cycle
-    init(_ size: CGSize, _ isSelected: Bool) {
+    override init() {
         super.init()
-        bounds = CGRect(x: 0, y: 0, width: size.width, height: size.height)
-        setup(size, isSelected)
+        addSublayer(outLayer)
+        addSublayer(inLayer)
     }
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+    override func layoutSublayers() {
+        super.layoutSublayers()
+        updateSubLayerPath()
+    }
     
     // MARK: - private
-    func setup(_ size: CGSize, _ isSelected: Bool) {
+    func updateSubLayerPath() {
+        let center = CGPoint(x: bounds.size.width / 2, y: bounds.size.height / 2)
+        let size = bounds.size
         
+        let gap = CGFloat(2)
+        
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        
+        if !isSelected {
+            outLayer.bounds = CGRect(x: 0, y: 0, width: size.width - gap, height: size.height - gap)
+            inLayer.isHidden = true
+            
+            let path = generateDiamondPathWithRect(outLayer.bounds.size)
+            outLayer.path = path.cgPath
+        } else {
+            outLayer.bounds = CGRect(x: 0, y: 0, width: size.width, height: size.height)
+            inLayer.bounds = CGRect(x: 0, y: 0, width: size.width - gap*3, height: size.height - gap*3)
+            inLayer.isHidden = false
+            
+            var path = generateDiamondPathWithRect(outLayer.bounds.size)
+            outLayer.path = path.cgPath
+            path = generateDiamondPathWithRect(inLayer.bounds.size)
+            inLayer.path = path.cgPath
+        }
+        
+        outLayer.position = center
+        inLayer.position = center
+        
+        CATransaction.commit()
+    }
+    
+    func generateDiamondPathWithRect(_ size: CGSize) -> UIBezierPath {
         let path = UIBezierPath()
         path.move(to: CGPoint(x: size.width / 2.0, y: 0.0))
         path.addLine(to: CGPoint(x: size.width, y: size.height / 2))
         path.addLine(to: CGPoint(x: size.width / 2, y: size.height))
         path.addLine(to: CGPoint(x: 0.0, y: size.height / 2))
         path.addLine(to: CGPoint(x: size.width / 2.0, y: 0.0))
-        
-        outLayer.frame = bounds
-        outLayer.backgroundColor = UIColor.clear.cgColor
-        outLayer.path = path.cgPath
-        outLayer.strokeColor = UIColor(red: CGFloat(183.0/255.0), green: CGFloat(174.0/255.0), blue: CGFloat(47.0/255.0), alpha: CGFloat(1)).cgColor
-        outLayer.lineWidth = 1
-        addSublayer(outLayer)
-        
-        let gap = CGFloat(3)
-        
-        if isSelected {
-            inLayer.frame = bounds
-            inLayer.backgroundColor = UIColor.clear.cgColor
-            let inLayerPath = UIBezierPath()
-            inLayerPath.move(to: CGPoint(x: size.width / 2.0, y: gap))
-            inLayerPath.addLine(to: CGPoint(x: size.width - gap, y: size.height / 2))
-            inLayerPath.addLine(to: CGPoint(x: size.width / 2, y: size.height - gap))
-            inLayerPath.addLine(to: CGPoint(x: gap, y: size.height / 2))
-            inLayerPath.addLine(to: CGPoint(x: size.width / 2.0, y: gap))
-            inLayer.path = inLayerPath.cgPath
-            inLayer.strokeColor = UIColor(red: CGFloat(183.0/255.0), green: CGFloat(174.0/255.0), blue: CGFloat(47.0/255.0), alpha: CGFloat(1)).cgColor
-            inLayer.fillColor = UIColor(red: CGFloat(183.0/255.0), green: CGFloat(174.0/255.0), blue: CGFloat(47.0/255.0), alpha: CGFloat(1)).cgColor
-            inLayer.lineWidth = 1
-            addSublayer(inLayer)
-        }
-    }
-    
-    func updateState() {
-        if isSelected {
-            
-        } else {
-            
-        }
+        return path
     }
 }

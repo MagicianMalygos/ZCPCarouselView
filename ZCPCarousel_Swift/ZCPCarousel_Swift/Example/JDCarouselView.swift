@@ -56,9 +56,9 @@ class JDCarouselView: UIView, ZCPCarouselDelegate {
 
 // MARK: - 京东pageControl
 
-internal let LINE_WIDTH: Float = 3
-internal let LINE_LENGTH: Float = 8
-internal let GAP_LENGTH: Float = 10
+fileprivate let LINE_WIDTH: Float = 3
+fileprivate let LINE_LENGTH: Float = 8
+fileprivate let GAP_LENGTH: Float = 10
 
 class JDPageControl: UIView, CAAnimationDelegate, ZCPCarouselPageControlProtocol {
     // MARK: - property
